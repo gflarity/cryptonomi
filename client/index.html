@@ -1,0 +1,79 @@
+
+<title>File API (simple)</title>
+<article>
+  <p id="status">File API &amp; FileReader API not supported</p>
+  <p>Select a file to be encrypted: <input type=file></p>
+  <p>Enter a password: <input type=password> <button type="button">Encrypt</button></p>
+  <div id="holder"></div>
+  <progress id='encryption_progress' min="0" max="1000" value="0" style="width:500px;">0% complete</progress>
+</article>
+<script type="text/javascript" src="cryptonomi.js"></script>
+
+<script type="text/javascript" src="node_modules/eventemitter2/lib/eventemitter2.js"></script>
+<script type="text/javascript" src="webworker_bridge_emitter.js"></script>
+<script src="aes.js"></script>
+
+<script src="aes.js"></script>
+<script src="core.js"></script>
+
+<script src="FileSaver.js"></script>
+<script>
+var worker = new Worker('cryptoworker.js');
+
+var upload = document.getElementsByTagName('input')[0],
+    holder = document.getElementById('holder'),
+    state = document.getElementById('status');
+
+var bridge = new EEWWBridge( worker );
+
+var onProgress = function( value ) {
+  var progressBar = document.getElementById('encryption_progress');   
+  progressBar.value = value;
+};
+bridge.on( 'progress', onProgress );
+
+bridge.on( 'console.log', function( value ) { console.log( value ) } );
+
+bridge.on( 'encrypted', function( payload ) { 
+    
+    var arrayBuffer = payload.arrayBuffer;
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload', true);
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.onload = function(e) {
+        console.log( e )    
+    };  
+    
+    var bb = new BlobBuilder();
+    bb.append(arrayBuffer);
+    xhr.send( bb.getBlob() );
+})
+var encryptButton = document.getElementsByTagName('button')[0];
+    
+if (typeof window.FileReader === 'undefined') {
+    state.className = 'fail';
+}
+else {
+    state.className = 'success';
+    state.innerHTML = 'File API & FileReader available';
+}
+
+upload.onchange = function(e) {
+    e.preventDefault();
+
+    var file = upload.files[0];
+    
+    encryptButton.onclick = function( event ) {
+        var reader = new FileReader();    
+        reader.onloadend = function ( event ) {
+            
+            bridge.pass( 'encrypt', { 'arrayBuffer' : event.target.result, 'password' : 'password' },  [event.target.result] );
+        };
+        reader.readAsArrayBuffer( file );
+    
+    };
+    
+};
+</script>
+
