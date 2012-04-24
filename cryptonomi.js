@@ -1,4 +1,5 @@
 
+var createGuid = require('guid').raw;
 
 var couch = require('couch'), c = couch('http://localhost:5984/cryptonomi')
 var union = require('union')
@@ -19,8 +20,9 @@ app.route('/upload', function (req, resp) {
     //so we need to buffer it for now    
     var bufferedStream = new union.BufferedStream()
     req.pipe( bufferedStream )
-    
-    c.post( { 'fake' : 1 }, function( err, info ) { 
+    var guid = createGuid()
+      
+    c.post( { '_id' : guid }, function( err, info ) { 
         
         if ( err ) { 
             return resp.end( err )                
@@ -35,25 +37,18 @@ app.route('/upload', function (req, resp) {
 
 }).methods('POST'); 
 
+app.route('/download/:guid',  function (req, resp) {
+    var guid = req.params['guid']
+    var couchUrl = 'http://localhost:5984/cryptonomi/' + guid + '/attachment'
+    console.log( couchUrl )
+    var couchRequest = request(couchUrl)
+    couchRequest.pipe(resp)        
+}).methods('GET')
+
+
+app.route('/decrypt/:guid').file(path.join(__dirname, 'client/decrypt.html'))
+
+
+
 app.route('/*').files(path.join(__dirname, 'client'))
 app.httpServer.listen(6969)
-/*
-
-  
-var http = require('http')
-var request = require('request');
-
-var server = http.createServer(function (req, resp) {
-    req.pause();
-    c.post( { 'fake' : 1 }, function( err, info ) { 
-            
-            if ( err ) { 
-                return resp.end( err )                
-            }
-        
-        req.pipe( request.post('http://localhost:6970') )
-        req.resume()
-    })
-})
-server.listen(6969)
-*/

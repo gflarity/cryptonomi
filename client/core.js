@@ -485,7 +485,9 @@ sjcl.codec.utf8String = {
       out += String.fromCharCode(tmp >>> 24);
       tmp <<= 8;
     }
-    return decodeURIComponent(escape(out));
+    //hack, this excepts since the string was binary
+    //return decodeURIComponent(escape(out));
+    return out
   },
   
   /** Convert from a UTF-8 string to a bitArray. */
@@ -893,7 +895,7 @@ sjcl.mode.ccm = {
    * @param {Number} [64] tlen the desired tag length, in bits.
    * @return {bitArray} The decrypted data.
    */
-  decrypt: function(prf, ciphertext, iv, adata, tlen) {
+  decrypt: function(prf, ciphertext, iv, adata, tlen, onProgress) {
     tlen = tlen || 64;
     adata = adata || [];
     var L, i, 
@@ -916,10 +918,10 @@ sjcl.mode.ccm = {
     iv = w.clamp(iv,8*(15-L));
     
     // decrypt
-    out = sjcl.mode.ccm._ctrMode(prf, out, iv, tag, tlen, L);
+    out = sjcl.mode.ccm._ctrMode(prf, out, iv, tag, tlen, L, onProgress);
     
     // check the tag
-    tag2 = sjcl.mode.ccm._computeTag(prf, out.data, iv, adata, tlen, L);
+    tag2 = sjcl.mode.ccm._computeTag(prf, out.data, iv, adata, tlen, L,onProgress);
     if (!w.equal(out.tag, tag2)) {
       throw new sjcl.exception.corrupt("ccm: tag doesn't match");
     }
@@ -1763,7 +1765,7 @@ sjcl.random = {
    * @throws {sjcl.exception.invalid} if a parameter is invalid.
    * @throws {sjcl.exception.corrupt} if the ciphertext is corrupt.
    */
-  decrypt: function (password, ciphertext, params, rp) {
+  decrypt: function (password, ciphertext, params, rp, onProgress) {
     params = params || {};
     rp = rp || {};
     
@@ -1796,7 +1798,7 @@ sjcl.random = {
     prp = new sjcl.cipher[p.cipher](password);
     
     /* do the decryption */
-    ct = sjcl.mode[p.mode].decrypt(prp, p.ct, p.iv, adata, p.ts);
+    ct = sjcl.mode[p.mode].decrypt(prp, p.ct, p.iv, adata, p.ts, onProgress);
     
     /* return the json data */
     j._add(rp, p);

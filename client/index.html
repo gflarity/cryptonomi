@@ -44,10 +44,10 @@ bridge.on( 'encrypted', function( payload ) {
     xhr.onload = function(e) {
         console.log( e )    
     };  
-    
     var bb = new BlobBuilder();
     bb.append(arrayBuffer);
     xhr.send( bb.getBlob() );
+   
 })
 var encryptButton = document.getElementsByTagName('button')[0];
     
