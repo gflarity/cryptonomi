@@ -107,9 +107,9 @@ var onDecrypt = function( payload ) {
         bridge.pass( 'progress', Math.round( (event.encrypted / event.total) * 1000 ) );
     };
     
-    var onDecrypted = function( err, arrayBufer ) {        
+    var onDecrypted = function( err, decryptedArrayBuffer ) {        
         bridge.pass( 'progress', 1000 );    
-        bridge.pass( 'decrypted', { 'arrayBuffer' : arrayBuffer }, [ arrayBuffer ] );
+        bridge.pass( 'decrypted', { 'decryptedArrayBuffer' : decryptedArrayBuffer }, [ decryptedArrayBuffer ] );
     };
     decryptArrayBufferToArrayBuffer( arrayBuffer, password, onProgress, onDecrypted );
 };

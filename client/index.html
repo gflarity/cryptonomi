@@ -1,11 +1,21 @@
 
 <title>File API (simple)</title>
 <article>
-  <p id="status">File API &amp; FileReader API not supported</p>
-  <p>Select a file to be encrypted: <input type=file></p>
-  <p>Enter a password: <input type=password> <button type="button">Encrypt</button></p>
-  <div id="holder"></div>
-  <progress id='encryption_progress' min="0" max="1000" value="0" style="width:500px;">0% complete</progress>
+  <!-- p id="status">File API &amp; FileReader API not supported</p-->
+    <p><input id="file_chooser" type=file ></p>  
+    <p>
+    Enter a password: <input type=password></p>
+    <p>
+    <p>
+    <button type="button" id="encrypt_button" disabled="disabled">Encrypt</button>
+    <progress id='encryption_progress' min="0" max="1000" value="0" style="width:500px;">0% complete</progress>
+    </p>
+    <button type="button" id="upload_button" disabled="disabled">Upload</button>
+    <progress id='upload_progress' min="0" max="1000" value="0" style="width:500px;">0% complete</progress>   
+    </p>
+    <p id="link_container">
+    
+    </p>
 </article>
 <script type="text/javascript" src="cryptonomi.js"></script>
 
@@ -20,15 +30,88 @@
 <script>
 var worker = new Worker('cryptoworker.js');
 
-var upload = document.getElementsByTagName('input')[0],
-    holder = document.getElementById('holder'),
-    state = document.getElementById('status');
-
+var fileChooser = document.getElementById('file_chooser')
+var holder = document.getElementById('holder')
+    
 var bridge = new EEWWBridge( worker );
 
+var selectedFile
+var encryptedArrayBuffer
+var encryptedFileName
+var guid
+
+fileChooser.onchange = function(e) {
+    e.preventDefault();
+    selectedFile = fileChooser.files[0];
+    encryptButton.attributes.removeNamedItem('disabled')
+    
+}
+
+var uploadButton = document.getElementById('upload_button')
+uploadButton.onclick = function( event ) {
+    
+    //first we need to create the meta document
+    var createXHR = new XMLHttpRequest()
+    
+    var user = 'fakeuser'    
+    var createURL = '/create/' + user + '/' + encryptedFileName    
+    createXHR.open('POST', createURL, true)
+    createXHR.onload = function( e ) {
+     
+        //check if e was an error
+        var response = JSON.parse( this.response )
+        if ( response.error ) {
+            return console.log( error )                
+        }
+        
+        guid = response.guid
+        
+        //create a new XHR for uploading
+        var uploadXHR = new XMLHttpRequest()
+        
+        var uploadURL = '/upload/' + response.guid
+        uploadXHR.open('POST', uploadURL, true)
+        uploadXHR.setRequestHeader("Content-Type", "application/octet-stream");
+
+        uploadXHR.onload = function(e) {
+            
+            var linkContainer =  document.getElementById('link_container')        
+            var response = JSON.parse( this.response )        
+            var url = 'http://' + window.location.host + '/decrypt/' + guid
+            linkContainer.innerHTML = '<a href="' + url + '">' + url + '</a>'
+            console.log( e ) 
+        }  
+        
+        uploadXHR.upload.onprogress = function(e) {
+
+            if (e.lengthComputable) {
+                var uploadProgressBar = document.getElementById('upload_progress')   
+                uploadProgressBar.value = (e.loaded / e.total) * 1000
+                uploadProgressBar.textContent = uploadProgressBar.value // Fallback for unsupported browsers.
+            }
+        }           
+                    
+        var bb = new BlobBuilder()
+        bb.append(encryptedArrayBuffer)
+        uploadXHR.send( bb.getBlob() )
+    }
+    createXHR.send()
+}
+
+var encryptButton = document.getElementById('encrypt_button')
+encryptButton.onclick = function( event ) {
+        var reader = new FileReader();    
+        reader.onloadend = function ( event ) {
+            
+            bridge.pass( 'encrypt', { 'arrayBuffer' : event.target.result, 'password' : 'password' },  [event.target.result] );
+        };
+        reader.readAsArrayBuffer( selectedFile );
+    
+}
+
 var onProgress = function( value ) {
-  var progressBar = document.getElementById('encryption_progress');   
-  progressBar.value = value;
+  var encryptionProgressBar = document.getElementById('encryption_progress');   
+  encryptionProgressBar.value = value;
 };
 bridge.on( 'progress', onProgress );
 
@@ -36,44 +119,13 @@ bridge.on( 'console.log', function( value ) { console.log( value ) } );
 
 bridge.on( 'encrypted', function( payload ) { 
     
-    var arrayBuffer = payload.arrayBuffer;
+    encryptedArrayBuffer = payload.arrayBuffer;
     
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/upload', true);
-    xhr.setRequestHeader("Content-Type", "application/octet-stream");
-    xhr.onload = function(e) {
-        console.log( e )    
-    };  
-    var bb = new BlobBuilder();
-    bb.append(arrayBuffer);
-    xhr.send( bb.getBlob() );
-   
+    //for now the file name isn't encrypted
+    encryptedFileName = selectedFile.fileName
+
+    uploadButton.attributes.removeNamedItem('disabled')
 })
-var encryptButton = document.getElementsByTagName('button')[0];
-    
-if (typeof window.FileReader === 'undefined') {
-    state.className = 'fail';
-}
-else {
-    state.className = 'success';
-    state.innerHTML = 'File API & FileReader available';
-}
 
-upload.onchange = function(e) {
-    e.preventDefault();
-
-    var file = upload.files[0];
-    
-    encryptButton.onclick = function( event ) {
-        var reader = new FileReader();    
-        reader.onloadend = function ( event ) {
-            
-            bridge.pass( 'encrypt', { 'arrayBuffer' : event.target.result, 'password' : 'password' },  [event.target.result] );
-        };
-        reader.readAsArrayBuffer( file );
-    
-    };
-    
-};
 </script>
 

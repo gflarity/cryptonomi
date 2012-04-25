@@ -13,22 +13,49 @@ var tako = require('tako')
   
 app.route('/').file(path.join(__dirname, 'client/index.html'))
 
-app.route('/upload', function (req, resp) {
+app.route('/create/:user/:filename', function ( req, resp) {
+    var guid = createGuid()      
     
-    //we need to hit counch and create the doc first,
-    //unforunately this is our only chance to pipe the req
-    //so we need to buffer it for now    
+    var user = req.params.user
+    var filename = req.params.filename
+    
+    if ( ! user || ! filename ) {
+        return resp.end( JSON.stringify( { error : "missing required params" } ) )    
+    }
+    
+    var doc = { '_id' : guid, filename : filename, user : user }
+    c.post( doc, function( err, info ) {  
+        if ( err ) { 
+            return resp.end( err )                
+        }            
+        return resp.end( JSON.stringify( { "guid" : guid } ) )
+    })
+}).methods('POST')
+
+app.route('/upload/:guid', function (req, resp) {
+    
+    var guid = req.params.guid
+    
+    if ( ! guid ) return resp.end( JSON.stringify( { error : "guid missing?" } ) )    
+    
     var bufferedStream = new union.BufferedStream()
     req.pipe( bufferedStream )
-    var guid = createGuid()
-      
-    c.post( { '_id' : guid }, function( err, info ) { 
+          
+    c.get( guid, function( err, info ) { 
         
         if ( err ) { 
             return resp.end( err )                
         }            
         
-        var doc_url = 'http://localhost:5984/cryptonomi/' + info.id + '/attachment?rev=' + info.rev;
+        console.log( info )
+        var rev = info._rev
+        //we want exactly the first revision
+        if ( ! rev[0] === '1' || ! rev[1] === '-' ) {
+            return response.end( JSON.stringify( { error : 'wtf' } ) )
+        }
+        
+        //made it here, we're good
+        var doc_url = 'http://localhost:5984/cryptonomi/' + info._id + '/attachment?rev=' + rev;
         var put = request.put( doc_url )
         bufferedStream.pipe( put )
         put.pipe( resp );                   
@@ -37,8 +64,23 @@ app.route('/upload', function (req, resp) {
 
 }).methods('POST'); 
 
+app.route('/filename/:guid',  function (req, resp) {
+   
+    var guid = req.params.guid
+    if ( ! guid ) return resp.end( JSON.stringify( { error: "guid is required" } ) )
+    
+    c.get( guid, function( err, info ) { 
+        if ( err ) { 
+            return resp.end( err )                
+        }
+        
+        resp.end( { filename: info.filename } )
+    })
+})
+    
 app.route('/download/:guid',  function (req, resp) {
     var guid = req.params['guid']
+    
     var couchUrl = 'http://localhost:5984/cryptonomi/' + guid + '/attachment'
     console.log( couchUrl )
     var couchRequest = request(couchUrl)

@@ -1,11 +1,21 @@
 
 <title>File API (simple)</title>
 <article>
-  <p id="status">File API &amp; FileReader API not supported</p>
-  <button id="download_button">Download</button>
-  <p>Enter a password: <input type=password> <button type="button">Decrypt</button></p>
-  <div id="holder"></div>
-  <progress id='decryption_progress' min="0" max="1000" value="0" style="width:500px;">0% complete</progress>
+    <p>
+    <button id="download_button" disabled="disabled">Download</button>
+    <progress id='download_progress' min="0" max="1000" value="0" style="width:500px;" >0% complete</progress>
+    </p>
+    <p>
+    Enter a password: <input type=password>
+    </p>
+    <p>
+    <button type="button" id="decrypt_button" disabled="disabled">Decrypt</button>
+    <progress id='decryption_progress' min="0" max="1000" value="0" style="width:500px;">0% complete</progress>
+    </p>
+    <p>
+    <button id="save_as_button" disabled="disabled">Save</button>
+    </p>
+    
 </article>
 <script type="text/javascript" src="/cryptonomi.js"></script>
 
@@ -19,18 +29,50 @@
 var state = document.getElementById('status')
 var worker = new Worker('/cryptoworker.js')
 var bridge = new EEWWBridge( worker )
+var encryptedArrayBuffer;
+var decryptedArrayBuffer
 
 var downloadButton = document.getElementById('download_button')
+
+var hrefSplit = window.location.href.split(/\//)
+var guid =hrefSplit[hrefSplit.length - 1]        
+
+var fileName
+
+getEncryptedFileNameXHR = new XMLHttpRequest()
+var encryptedFileNameURL = '/filename/' + guid
+getEncryptedFileNameXHR.open('GET', encryptedFileNameURL, true);
+getEncryptedFileNameXHR.onload = function( e ) {
+    
+    //TODO add error checking
+    var response = JSON.parse( this.response )
+    
+    if ( response.error ) return console.log( response ) 
+    
+    filename = response.filename
+    downloadButton.attributes.removeNamedItem('disabled')    
+
+}
+getEncryptedFileNameXHR.send()
+
 downloadButton.onclick= function( event ) {
     var xhr = new XMLHttpRequest();  
-    var hrefSplit = window.location.href.split(/\//)
-    var guid =hrefSplit[hrefSplit.length - 1]        
     var url = '/download/' + guid
     xhr.open('GET', url, true);
     xhr.responseType = 'arraybuffer';
+    xhr.onprogress = function ( e ) {
+     
+        if (e.lengthComputable) {
+            var downloadProgressBar = document.getElementById('download_progress');   
+            downloadProgressBar.value = (e.loaded / e.total) * 1000;
+            downloadProgressBar.textContent = downloadProgressBar.value; // Fallback for unsupported browsers.
+        }
+    }   
+    
+    
     xhr.onload = function(e) {
          if (this.status == 200) {
-            arrayBuffer = this.response
+            
             var onDecrypted = function( payload ) {
                 console.log( payload )    
             };
@@ -41,22 +83,32 @@ downloadButton.onclick= function( event ) {
                 progressBar.value = value;
             };
 
-           bridge.on( 'progress', onProgress )
-           bridge.pass( 'decrypt', { arrayBuffer : arrayBuffer, password : 'password' }, [ arrayBuffer ] )
+            bridge.on( 'progress', onProgress )
+            //
+            encryptedArrayBuffer = this.response
+            decryptButton.attributes.removeNamedItem('disabled')
         }
     };
     xhr.send();
 };
 
+var decryptButton = document.getElementById('decrypt_button')
+decryptButton.onclick = function( event ) {
+    bridge.pass( 'decrypt', { arrayBuffer : encryptedArrayBuffer, password : 'password' }, [ encryptedArrayBuffer ] )
+    bridge.on( 'decrypted', function( payload ) {
+        decryptedArrayBuffer = payload.decryptedArrayBuffer
+        saveAsButton.attributes.removeNamedItem('disabled')
+    })
+}
+
+var saveAsButton = document.getElementById('save_as_button')
+saveAsButton.onclick = function( event ) {
+    var bb = new BlobBuilder;    
+    bb.append( decryptedArrayBuffer )
+    saveAs( bb.getBlob(), filename  )
+}
 bridge.on( 'console.log', function( value ) { console.log( value ) } );
 
-if (typeof window.FileReader === 'undefined') {
-    state.className = 'fail';
-}
-else {
-    state.className = 'success';
-    state.innerHTML = 'File API & FileReader available';
-}
 
 </script>
 
